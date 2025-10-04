@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsIn, IsNotEmpty, IsOptional, IsString, ValidateIf } from 'class-validator';
+import { IsArray, IsIn, IsNotEmpty, IsOptional, IsString, ValidateIf } from 'class-validator';
 
 export class AuthorizationRequestDto {
   @IsString()
@@ -14,14 +14,17 @@ export class AuthorizationRequestDto {
   @IsNotEmpty()
   redirect_uri!: string;
 
+  @IsOptional()
   @Transform(({ value }) =>
     typeof value === 'string'
       ? value
-        .split(/[\s+]+/)
-        .map((segment: string) => segment.trim())
-        .filter(Boolean)
+          .split(/[\s+]+/)
+          .map((segment: string) => segment.trim())
+          .filter(Boolean)
       : [],
   )
+  @IsArray()
+  @IsString({ each: true })
   scope: string[] = [];
 
   @IsOptional()

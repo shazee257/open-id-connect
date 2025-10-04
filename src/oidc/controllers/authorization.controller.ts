@@ -36,7 +36,7 @@ export class AuthorizationController {
       throw new BadRequestException('invalid_request');
     }
 
-    const isRedirectAllowed = client.redirectUris.some((entry) => entry.uri === query.redirect_uri);
+    const isRedirectAllowed = client.redirectUris.some((entry) => entry.uri == query.redirect_uri);
     if (!isRedirectAllowed) {
       throw new BadRequestException('invalid_redirect_uri');
     }

@@ -8,7 +8,7 @@ export class ClientsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly hashService: HashService,
-  ) {}
+  ) { }
 
   create(data: Prisma.OidcClientCreateInput): Promise<OidcClient> {
     return this.prisma.oidcClient.create({ data });
