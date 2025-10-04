@@ -1,0 +1,176 @@
+// Prisma schema for OIDC service
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  ACTIVE
+  LOCKED
+  DISABLED
+}
+
+enum GrantType {
+  AUTHORIZATION_CODE
+  CLIENT_CREDENTIALS
+  REFRESH_TOKEN
+}
+
+enum ResponseType {
+  CODE
+  TOKEN
+  ID_TOKEN
+}
+
+enum CodeChallengeMethod {
+  PLAIN
+  S256
+}
+
+enum TokenType {
+  AUTHORIZATION_CODE
+  ACCESS_TOKEN
+  REFRESH_TOKEN
+}
+
+model User {
+  id            String          @id @default(uuid())
+  email         String          @unique
+  emailVerified Boolean         @default(false)
+  displayName   String?
+  passwordHash  String
+  status        UserStatus      @default(ACTIVE)
+  picture       String?
+  locale        String?         @db.VarChar(12)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  authorizationCodes AuthorizationCode[]
+  refreshTokens RefreshToken[]
+  sessions      UserSession[]
+  subjectClaims SubjectClaim[]
+}
+
+model OidcClient {
+  id                     String                       @id
+  name                   String
+  description            String?
+  secretHash             String?
+  isConfidential         Boolean                      @default(true)
+  redirectUris           ClientRedirectUri[]
+  postLogoutRedirectUris ClientPostLogoutUri[]
+  grantTypes             GrantType[]                  @default([AUTHORIZATION_CODE, REFRESH_TOKEN])
+  responseTypes          ResponseType[]               @default([CODE])
+  scopes                 String[]                     @default(["openid"])
+  tokenEndpointAuthMethod String                      @default("client_secret_basic")
+  requireProofKey         Boolean                     @default(true)
+  requireConsent          Boolean                     @default(false)
+  createdAt               DateTime                    @default(now())
+  updatedAt               DateTime                    @updatedAt
+  authorizationCodes      AuthorizationCode[]
+  refreshTokens           RefreshToken[]
+  sessions                UserSession[]
+
+  @@index([name])
+}
+
+model ClientRedirectUri {
+  id        Int         @id @default(autoincrement())
+  uri       String
+  client    OidcClient  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId  String
+
+  @@unique([clientId, uri])
+}
+
+model ClientPostLogoutUri {
+  id        Int         @id @default(autoincrement())
+  uri       String
+  client    OidcClient  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId  String
+
+  @@unique([clientId, uri])
+}
+
+model AuthorizationCode {
+  id                  String               @id @default(uuid())
+  codeHash            String               @unique
+  user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId              String
+  client              OidcClient           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId            String
+  session             UserSession?          @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  sessionId           String?
+  redirectUri         String
+  scopes              String[]             @default(["openid"])
+  nonce               String?
+  codeChallenge       String?
+  codeChallengeMethod CodeChallengeMethod?
+  expiresAt           DateTime
+  consumedAt          DateTime?
+  createdAt           DateTime             @default(now())
+}
+
+model RefreshToken {
+  id             String       @id @default(uuid())
+  tokenHash      String       @unique
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId         String
+  client         OidcClient   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId       String
+  scopes         String[]     @default(["openid"])
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  session        UserSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  sessionId      String?
+  createdAt      DateTime     @default(now())
+
+  @@index([userId, clientId])
+}
+
+model UserSession {
+  id             String        @id @default(uuid())
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId         String
+  client         OidcClient?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  clientId       String?
+  ipAddress      String?
+  userAgent      String?
+  scopes         String[]      @default(["openid"])
+  expiresAt      DateTime
+  terminatedAt   DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  refreshTokens  RefreshToken[]
+  authorizationCodes AuthorizationCode[]
+}
+
+model JsonWebKey {
+  id         String   @id @default(uuid())
+  kid        String   @unique
+  publicJwk  Json
+  privateJwk Json
+  algorithm  String
+  use        String   @default("sig")
+  isCurrent  Boolean  @default(false)
+  notBefore  DateTime @default(now())
+  notAfter   DateTime?
+  createdAt  DateTime @default(now())
+  rotatedAt  DateTime?
+}
+
+model SubjectClaim {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  name      String
+  value     String
+  source    String?
+  createdAt DateTime @default(now())
+
+  @@unique([userId, name])
+}
